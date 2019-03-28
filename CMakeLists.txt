@@ -18,6 +18,8 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
+include(third_party/cotire/CMake/cotire.cmake)
+
 function(setup_build_context APP)
     target_compile_features(${APP} PUBLIC cxx_std_17)
 
@@ -40,6 +42,9 @@ function(setup_build_context APP)
     endif ()
 
     set_property(TARGET ${APP} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
+
+    # Enable cotire
+    cotire(${APP})
 endfunction()
 
 add_subdirectory(hello)
