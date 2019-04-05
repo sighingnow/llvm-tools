@@ -18,7 +18,44 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
+set(Boost_USE_MULTITHREADED ON)
+find_package(Boost REQUIRED)
+
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+
+add_subdirectory(third_party/fmt)
+include_directories(third_party/fmt/include)
+link_libraries(fmt::fmt)
+
 include(third_party/cotire/CMake/cotire.cmake)
+
+## Set up compiler and options.
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    add_compile_options(
+        -Wall
+        -Wextra
+        -pedantic-errors
+        -Wfatal-errors
+    )
+endif ()
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    add_compile_options(-stdlib=libc++)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
+endif ()
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG)
+    add_compile_options(-O1 -g -ggdb)
+    if (UNIX)
+        add_compile_options(-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -fno-optimize-sibling-calls)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined")
+    endif ()
+else ()
+    add_definitions(-DNDEBUG)
+    add_compile_options(-O2 -march=native)
+endif ()
 
 function(setup_build_context APP)
     target_compile_features(${APP} PUBLIC cxx_std_17)
@@ -47,4 +84,10 @@ function(setup_build_context APP)
     cotire(${APP})
 endfunction()
 
-add_subdirectory(hello)
+include_directories(support/include)
+
+option(BUILD_HELLO OFF)
+
+if (BUILD_HELLO)
+    add_subdirectory(hello)
+endif ()
