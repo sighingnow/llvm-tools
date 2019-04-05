@@ -1,3 +1,9 @@
 [submodule "third_party/cotire"]
 	path = third_party/cotire
 	url = https://github.com/sakra/cotire.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "third_party/patterns"]
+	path = third_party/patterns
+	url = https://github.com/mpark/patterns.git
