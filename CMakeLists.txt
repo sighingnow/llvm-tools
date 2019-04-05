@@ -87,7 +87,12 @@ endfunction()
 include_directories(support/include)
 
 option(BUILD_HELLO OFF)
+option(BUILD_KALEIDOSCOPE OFF)
 
 if (BUILD_HELLO)
     add_subdirectory(hello)
+endif ()
+
+if (BUILD_KALEIDOSCOPE)
+    add_subdirectory(kaleidoscope)
 endif ()
