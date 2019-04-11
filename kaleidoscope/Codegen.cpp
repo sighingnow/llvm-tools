@@ -152,11 +152,7 @@ llvm::Function *function_t::codegen(llvm::Module & Module, llvm::LLVMContext & C
     }
 }
 
-void program_t::codegen() const {
-    llvm::LLVMContext Context;
-    llvm::IRBuilder<> Builder(Context);
-    llvm::Module Module("kaleidoscope", Context);
-    scope_t Scope;
+void program_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
     for (auto && p: prototypes) {
         p->codegen(Module, Context, Builder, Scope);
     }
@@ -167,4 +163,20 @@ void program_t::codegen() const {
     // wrap body into an entry function.
     auto entry = std::make_shared<function_t>("_main", std::vector<variable_ptr_t>{}, body);
     entry->codegen(Module, Context, Builder, Scope)->dump();
+}
+
+void procedure_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
+    std::visit(overloaded {
+        [&](prototype_ptr_t const & p) {
+            p->codegen(Module, Context, Builder, Scope)->dump();
+        },
+        [&](function_ptr_t const & f) {
+            f->codegen(Module, Context, Builder, Scope)->dump();
+        },
+        [&](expr_ptr_t const & e) {
+            // wrap body into an entry function.
+            auto entry = std::make_shared<function_t>("_main", std::vector<variable_ptr_t>{}, e);
+            entry->codegen(Module, Context, Builder, Scope)->dump();
+        }
+    }, this->prog);
 }

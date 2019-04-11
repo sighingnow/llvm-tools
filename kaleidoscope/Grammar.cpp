@@ -17,7 +17,14 @@ namespace detail {
     }
 }
 
-grammar_t::grammar_t(): grammar_t::base_type(program) {
+grammar_rules::grammar_rules() {
+    // procedure:
+    procedure   = prototype
+                  [ qi::_val = detail::ast_construct<procedure_t>(qi::_1) ]
+                | function
+                  [ qi::_val = detail::ast_construct<procedure_t>(qi::_1) ]
+                | expr
+                  [ qi::_val = detail::ast_construct<procedure_t>(qi::_1) ];
     // program:
     program     = (*prototype >> *function >> expr)
                   [ qi::_val = detail::ast_construct<program_t>(qi::_1, qi::_2, qi::_3) ];
@@ -74,4 +81,10 @@ grammar_t::grammar_t(): grammar_t::base_type(program) {
     // function := 'def' identifier '(' expr* ')' '{' expr '}'
     function    = ("def" >> identifier >> '(' >> (variable % ',') >> ')' >> '{' >> expr >> '}')
                   [ qi::_val = detail::ast_construct<function_t>(qi::_1, qi::_2, qi::_3) ];
+}
+
+program_grammar::program_grammar(): program_grammar::base_type(program) {
+}
+
+procedure_grammar::procedure_grammar(): procedure_grammar::base_type(procedure) {
 }

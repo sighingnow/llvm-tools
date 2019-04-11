@@ -3,9 +3,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include <fmt/format.h>
@@ -20,6 +23,9 @@
 #include <llvm/IR/Value.h>
 
 namespace qi = boost::spirit::qi;
+
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 template <typename Iter, typename P, typename... Args>
 bool parse_and_check(Iter begin, Iter end, P const & p, Args && ... args) {
@@ -49,6 +55,7 @@ struct branch_t;
 struct prototype_t;
 struct function_t;
 struct program_t;
+struct procedure_t;
 
 // Note that here std::unique is not supported by Boost's value initialization.
 namespace detail {
@@ -69,6 +76,7 @@ using branch_ptr_t = detail::ast_ptr_t<branch_t>;
 using prototype_ptr_t = detail::ast_ptr_t<prototype_t>;
 using function_ptr_t = detail::ast_ptr_t<function_t>;
 using program_ptr_t = detail::ast_ptr_t<program_t>;
+using procedure_ptr_t = detail::ast_ptr_t<procedure_t>;
 
 struct scope_t {
     scope_t() {
@@ -230,21 +238,44 @@ struct program_t {
         std::transform(functions.begin(), functions.end(), fmtfuncs.begin(), [](auto && p) { return p->format(); });
         return fmt::format("Prototypes:\n{}\n\n Functions:\n{}\n\n Body:\n{}", fmtprotos, fmtfuncs, body->format());
     }
-    void codegen() const;
+    void codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &, scope_t &) const;
   private:
     std::vector<prototype_ptr_t> prototypes;
     std::vector<function_ptr_t> functions;
     expr_ptr_t body;
 };
 
-class grammar_t: public qi::grammar<std::string::const_iterator, program_ptr_t(), qi::space_type> {
-  public:
-    grammar_t();
+struct procedure_t {
+    procedure_t(prototype_ptr_t const & prototype): prog(prototype) {}
+    procedure_t(function_ptr_t const & function): prog(function) {}
+    procedure_t(expr_ptr_t const & body): prog(body) {}
+    std::string format() const {
+        return std::visit(overloaded {
+            [](prototype_ptr_t const & p) {
+                return fmt::format("Prototype: {}", p->format());
+            },
+            [](function_ptr_t const & f) {
+                return fmt::format("Function: {}", f->format());
+            },
+            [](expr_ptr_t const & e) {
+                return fmt::format("Expression: {}", e->format());
+            }
+        }, this->prog);
+    }
+    void codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &, scope_t &) const;
   private:
+    std::variant<prototype_ptr_t, function_ptr_t, expr_ptr_t> prog;
+};
+
+class grammar_rules {
+  public:
+    grammar_rules();
+  protected:
     template <typename R>
     using rule_t = qi::rule<std::string::const_iterator, R(), qi::space_type>;
 
     rule_t<std::string> identifier;
+    rule_t<procedure_ptr_t> procedure;
     rule_t<program_ptr_t> program;
     rule_t<prototype_ptr_t> prototype;
     rule_t<function_ptr_t> function;
@@ -254,6 +285,16 @@ class grammar_t: public qi::grammar<std::string::const_iterator, program_ptr_t()
     // Operator precedence parser: https://en.wikipedia.org/wiki/Operator-precedence_parser
     rule_t<expr_ptr_t> cmp_exp, add_exp, mul_exp;
     rule_t<std::pair<char, expr_ptr_t>> cmp_many, add_many, mul_many;
+};
+
+class program_grammar: public grammar_rules, public qi::grammar<std::string::const_iterator, program_ptr_t(), qi::space_type> {
+  public:
+    program_grammar();
+};
+
+class procedure_grammar: public grammar_rules, public qi::grammar<std::string::const_iterator, procedure_ptr_t(), qi::space_type>  {
+  public:
+    procedure_grammar();
 };
 
 #endif
