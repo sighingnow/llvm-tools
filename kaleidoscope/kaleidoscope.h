@@ -2,6 +2,7 @@
 #define __LLVM_KALEIDOSCOPE_KALEIDOSCOPE_H__
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -16,13 +17,29 @@
 
 #include <boost/spirit/include/qi.hpp>
 
+#include <llvm/ADT/StringRef.h>
+#include <llvm/ExecutionEngine/JITSymbol.h>
+#include <llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h>
+#include <llvm/ExecutionEngine/Orc/CompileUtils.h>
+#include <llvm/ExecutionEngine/Orc/Core.h>
+#include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
+#include <llvm/ExecutionEngine/Orc/IRCompileLayer.h>
+#include <llvm/ExecutionEngine/Orc/IRTransformLayer.h>
+#include <llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h>
+#include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
+#include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Value.h>
+#include <llvm/Support/Error.h>
+#include <llvm/Support/TargetSelect.h>
 
 namespace qi = boost::spirit::qi;
+namespace orc = llvm::orc;
 
 template <class... Ts>
 struct overloaded : Ts... {
@@ -98,6 +115,13 @@ struct scope_t {
     void witness(std::string const &name, llvm::Value *value) {
         scopes.rbegin()->emplace(name, value);  // FIXME: needs validation
     }
+    void witnessFunction(std::string const &name, prototype_ptr_t Function) {
+        functionMap[name] = Function;
+    }
+    prototype_ptr_t function(std::string const &name) {
+        return functionMap[name];
+    }
+
     llvm::Value *local(std::string const &name);
     llvm::Value *global(std::string const &name);
 
@@ -116,12 +140,13 @@ struct scope_t {
    private:
     using dict_t = std::map<std::string, llvm::Value *>;
     std::vector<dict_t> scopes;
+    std::map<std::string, prototype_ptr_t> functionMap;
 };
 
 struct expr_t {
     expr_t() = default;
     virtual std::string format() const = 0;
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const = 0;
 };
 
@@ -131,7 +156,7 @@ struct number_t : public expr_t {
     std::string format() const override {
         return std::to_string(val);
     }
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const override;
 
    private:
@@ -144,7 +169,7 @@ struct variable_t : public expr_t {
     std::string format() const override {
         return name;
     }
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const override;
     std::string const &getName() const noexcept {
         return name;
@@ -160,7 +185,7 @@ struct unary_expr_t : public expr_t {
     std::string format() const override {
         return fmt::format("{} {}", op, operand->format());
     }
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const override;
 
    private:
@@ -186,7 +211,7 @@ struct binary_expr_t : public expr_t {
     std::string format() const override {
         return fmt::format("({} {} {})", lhs->format(), op, rhs->format());
     }
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const override;
 
    private:
@@ -205,7 +230,7 @@ struct call_t : public expr_t {
                        [](auto &&arg) { return arg->format(); });
         return fmt::format("{}({})", callee, fmtargs);
     }
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const override;
 
    private:
@@ -221,7 +246,7 @@ struct branch_t : public expr_t {
         return fmt::format("(({}) ? ({}) : ({}))", condition->format(), ifbody->format(),
                            elsebody->format());
     }
-    virtual llvm::Value *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    virtual llvm::Value *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                                  scope_t &) const override;
 
    private:
@@ -238,7 +263,7 @@ struct prototype_t {
                        [](auto &&arg) { return arg->format(); });
         return fmt::format("{}({});", name, fmtargs);
     }
-    llvm::Function *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    llvm::Function *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                             scope_t &) const;
     std::string const &getName() const noexcept {
         return name;
@@ -260,7 +285,7 @@ struct function_t {
     std::string format() const {
         return fmt::format("{}\{\n{}\n\}", prototype->format(), body->format());
     }
-    llvm::Function *codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+    llvm::Function *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
                             scope_t &) const;
 
    private:
@@ -287,7 +312,8 @@ struct program_t {
         return fmt::format("Prototypes:\n{}\n\n Functions:\n{}\n\n Body:\n{}", fmtprotos, fmtfuncs,
                            body->format());
     }
-    void codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &, scope_t &) const;
+    std::vector<llvm::Function *> codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
+                                          scope_t &) const;
 
    private:
     std::vector<prototype_ptr_t> prototypes;
@@ -314,7 +340,8 @@ struct procedure_t {
                                      }},
                           this->prog);
     }
-    void codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &, scope_t &) const;
+    llvm::Function *codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBuilder<> &,
+                            scope_t &) const;
 
    private:
     std::variant<prototype_ptr_t, function_ptr_t, expr_ptr_t> prog;
@@ -353,6 +380,48 @@ class procedure_grammar
           public qi::grammar<std::string::const_iterator, procedure_ptr_t(), qi::space_type> {
    public:
     procedure_grammar();
+};
+
+class JIT {
+   public:
+    JIT(llvm::DataLayout &&Layout, orc::JITTargetMachineBuilder &&JTMB)
+            : Layout(std::move(Layout)),
+              LinkLayer(ES, []() { return llvm::make_unique<llvm::SectionMemoryManager>(); }),
+              CompileLayer(ES, LinkLayer, orc::ConcurrentIRCompiler(std::move(JTMB))),
+              TransformLayer(ES, CompileLayer, optimizer),
+              Mangle(ES, this->Layout),
+              JITContext(std::make_unique<llvm::LLVMContext>()) {
+        ES.getMainJITDylib().setGenerator(llvm::cantFail(
+                orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(this->Layout)));
+    }
+
+    static llvm::Expected<std::unique_ptr<JIT>> Create();
+
+    llvm::DataLayout const &getDataLayout() {
+        return this->Layout;
+    }
+
+    llvm::LLVMContext &getContext() {
+        return *JITContext.getContext();
+    }
+
+    void addIRModule(std::unique_ptr<llvm::Module> Module);
+
+    llvm::Expected<llvm::JITEvaluatedSymbol> lookup(llvm::StringRef Name);
+
+   private:
+    static llvm::Expected<orc::ThreadSafeModule> optimizer(
+            orc::ThreadSafeModule Module, orc::MaterializationResponsibility const &);
+
+   private:
+    llvm::DataLayout Layout;
+    orc::ExecutionSession ES;
+    orc::RTDyldObjectLinkingLayer LinkLayer;
+    orc::IRCompileLayer CompileLayer;
+    orc::IRTransformLayer TransformLayer;
+    // orc::CompileOnDemandLayer CODLayer;
+    orc::MangleAndInterner Mangle;
+    orc::ThreadSafeContext JITContext;
 };
 
 #endif
