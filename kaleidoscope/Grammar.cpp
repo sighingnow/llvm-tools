@@ -1,8 +1,8 @@
 #include <boost/fusion/include/adapt_struct.hpp>
-#include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/spirit/include/qi.hpp>
 
 #include "kaleidoscope.h"
 
@@ -15,7 +15,7 @@ namespace detail {
     inline auto ast_construct(Args &&... args) {
         return phx::construct<ast_ptr_t<T>>(phx::new_<T>(std::forward<Args>(args)...));
     }
-}
+}  // namespace detail
 
 grammar_rules::grammar_rules() {
     // procedure:
@@ -83,8 +83,8 @@ grammar_rules::grammar_rules() {
                   [ qi::_val = detail::ast_construct<function_t>(qi::_1, qi::_2, qi::_3) ];
 }
 
-program_grammar::program_grammar(): program_grammar::base_type(program) {
+program_grammar::program_grammar() : program_grammar::base_type(program) {
 }
 
-procedure_grammar::procedure_grammar(): procedure_grammar::base_type(procedure) {
+procedure_grammar::procedure_grammar() : procedure_grammar::base_type(procedure) {
 }

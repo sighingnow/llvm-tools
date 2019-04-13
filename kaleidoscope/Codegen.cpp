@@ -3,8 +3,8 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
-#include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
@@ -13,7 +13,7 @@
 
 #include "kaleidoscope.h"
 
-llvm::Value *scope_t::local(std::string const & name) {
+llvm::Value *scope_t::local(std::string const &name) {
     if (scopes.rbegin()->find(name) == scopes.rbegin()->end()) {
         return nullptr;
     } else {
@@ -21,7 +21,7 @@ llvm::Value *scope_t::local(std::string const & name) {
     }
 }
 
-llvm::Value *scope_t::global(std::string const & name) {
+llvm::Value *scope_t::global(std::string const &name) {
     for (auto iter = scopes.rbegin(); iter != scopes.rend(); iter++) {
         if (iter->find(name) != iter->end()) {
             return iter->at(name);
@@ -30,11 +30,13 @@ llvm::Value *scope_t::global(std::string const & name) {
     return nullptr;
 }
 
-llvm::Value *number_t::codegen(llvm::Module &, llvm::LLVMContext & Context, llvm::IRBuilder<> &, scope_t &) const {
+llvm::Value *number_t::codegen(llvm::Module &, llvm::LLVMContext &Context, llvm::IRBuilder<> &,
+                               scope_t &) const {
     return llvm::ConstantFP::get(Context, llvm::APFloat(val));
 }
 
-llvm::Value *variable_t::codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &, scope_t & Scope) const {
+llvm::Value *variable_t::codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBuilder<> &,
+                                 scope_t &Scope) const {
     if (auto r = Scope.global(name)) {
         return r;
     } else {
@@ -42,7 +44,8 @@ llvm::Value *variable_t::codegen(llvm::Module &, llvm::LLVMContext &, llvm::IRBu
     }
 }
 
-llvm::Value *unary_expr_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
+llvm::Value *unary_expr_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                                   llvm::IRBuilder<> &Builder, scope_t &Scope) const {
     llvm::Value *v = operand->codegen(Module, Context, Builder, Scope);
     switch (op) {
         case '!':
@@ -54,7 +57,8 @@ llvm::Value *unary_expr_t::codegen(llvm::Module & Module, llvm::LLVMContext & Co
     }
 }
 
-llvm::Value *binary_expr_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
+llvm::Value *binary_expr_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                                    llvm::IRBuilder<> &Builder, scope_t &Scope) const {
     llvm::Value *l = lhs->codegen(Module, Context, Builder, Scope);
     llvm::Value *r = rhs->codegen(Module, Context, Builder, Scope);
     switch (op) {
@@ -77,16 +81,17 @@ llvm::Value *binary_expr_t::codegen(llvm::Module & Module, llvm::LLVMContext & C
     }
 }
 
-llvm::Value *call_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
+llvm::Value *call_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                             llvm::IRBuilder<> &Builder, scope_t &Scope) const {
     llvm::Function *F = Module.getFunction(callee);
     std::vector<llvm::Value *> valargs(args.size());
-    std::transform(args.begin(), args.end(), valargs.begin(), [&](auto && expr) {
-        return expr->codegen(Module, Context, Builder, Scope);
-    });
+    std::transform(args.begin(), args.end(), valargs.begin(),
+                   [&](auto &&expr) { return expr->codegen(Module, Context, Builder, Scope); });
     return Builder.CreateCall(F, valargs);
 }
 
-llvm::Value *branch_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
+llvm::Value *branch_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                               llvm::IRBuilder<> &Builder, scope_t &Scope) const {
     auto CondValue = condition->codegen(Module, Context, Builder, Scope);
     fmt::print("insert block: {:p}\n", fmt::ptr(Builder.GetInsertBlock()));
     auto F = Builder.GetInsertBlock()->getParent();
@@ -119,27 +124,31 @@ llvm::Value *branch_t::codegen(llvm::Module & Module, llvm::LLVMContext & Contex
     return Phi;
 }
 
-llvm::Function *prototype_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> &, scope_t &) const {
+llvm::Function *prototype_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                                     llvm::IRBuilder<> &, scope_t &) const {
     std::vector<llvm::Type *> argtypes(args.size());
     for (size_t i = 0; i < args.size(); ++i) {
         argtypes[i] = llvm::Type::getDoubleTy(Context);
     }
-    llvm::FunctionType *FType = llvm::FunctionType::get(llvm::Type::getDoubleTy(Context), argtypes, false);
-    llvm::Function *F = llvm::Function::Create(FType, llvm::Function::ExternalLinkage, name, Module);
+    llvm::FunctionType *FType
+            = llvm::FunctionType::get(llvm::Type::getDoubleTy(Context), argtypes, false);
+    llvm::Function *F
+            = llvm::Function::Create(FType, llvm::Function::ExternalLinkage, name, Module);
     size_t idx = 0;
-    for (auto && Arg: F->args()) {
+    for (auto &&Arg : F->args()) {
         Arg.setName(args[idx++]->getName());
     }
     return F;
 }
 
-llvm::Function *function_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
+llvm::Function *function_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                                    llvm::IRBuilder<> &Builder, scope_t &Scope) const {
     scope_t::RTTI rtti(Scope);
     llvm::Function *F = prototype->codegen(Module, Context, Builder, Scope);
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(Context, prototype->getName(), F);
     Builder.SetInsertPoint(BB);
 
-    for (auto && Arg: F->args()) {
+    for (auto &&Arg : F->args()) {
         Scope.witness(Arg.getName(), &Arg);
     }
     if (llvm::Value *Ret = body->codegen(Module, Context, Builder, Scope)) {
@@ -152,11 +161,12 @@ llvm::Function *function_t::codegen(llvm::Module & Module, llvm::LLVMContext & C
     }
 }
 
-void program_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
-    for (auto && p: prototypes) {
+void program_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                        llvm::IRBuilder<> &Builder, scope_t &Scope) const {
+    for (auto &&p : prototypes) {
         p->codegen(Module, Context, Builder, Scope);
     }
-    for (auto && f: functions) {
+    for (auto &&f : functions) {
         f->codegen(Module, Context, Builder, Scope);
     }
     Module.dump();
@@ -165,18 +175,19 @@ void program_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm
     entry->codegen(Module, Context, Builder, Scope)->dump();
 }
 
-void procedure_t::codegen(llvm::Module & Module, llvm::LLVMContext & Context, llvm::IRBuilder<> & Builder, scope_t & Scope) const {
-    std::visit(overloaded {
-        [&](prototype_ptr_t const & p) {
-            p->codegen(Module, Context, Builder, Scope)->dump();
-        },
-        [&](function_ptr_t const & f) {
-            f->codegen(Module, Context, Builder, Scope)->dump();
-        },
-        [&](expr_ptr_t const & e) {
-            // wrap body into an entry function.
-            auto entry = std::make_shared<function_t>("_main", std::vector<variable_ptr_t>{}, e);
-            entry->codegen(Module, Context, Builder, Scope)->dump();
-        }
-    }, this->prog);
+void procedure_t::codegen(llvm::Module &Module, llvm::LLVMContext &Context,
+                          llvm::IRBuilder<> &Builder, scope_t &Scope) const {
+    std::visit(overloaded{[&](prototype_ptr_t const &p) {
+                              p->codegen(Module, Context, Builder, Scope)->dump();
+                          },
+                          [&](function_ptr_t const &f) {
+                              f->codegen(Module, Context, Builder, Scope)->dump();
+                          },
+                          [&](expr_ptr_t const &e) {
+                              // wrap body into an entry function.
+                              auto entry = std::make_shared<function_t>(
+                                      "_main", std::vector<variable_ptr_t>{}, e);
+                              entry->codegen(Module, Context, Builder, Scope)->dump();
+                          }},
+               this->prog);
 }
