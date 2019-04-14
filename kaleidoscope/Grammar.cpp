@@ -70,16 +70,16 @@ grammar_rules::grammar_rules() {
                 | add_exp
                   [ qi::_val = qi::_1 ];
     // call := identifier '(' expr* ')'
-    call        = (identifier >> '(' >> (expr % ',') >> ')')
+    call        = (identifier >> '(' >> (- (expr % ',')) >> ')')
                   [ qi::_val = detail::ast_construct<call_t>(qi::_1, qi::_2) ];
     // branch := 'if' expr '{' expr '}' 'else' '{' expr '}'
     branch      = ("if" >> primary >> '{' >> expr >> '}' >> "else" >> '{' >> expr >> '}')
                   [ qi::_val = detail::ast_construct<branch_t>(qi::_1, qi::_2, qi::_3) ];
     // prototype := 'extern' identifier '(' expr* ')' ';'
-    prototype   = ("extern" >> identifier >> '(' >> (variable % ',') >> ')' >> ';')
+    prototype   = ("extern" >> identifier >> '(' >> (- (variable % ',')) >> ')' >> ';')
                   [ qi::_val = detail::ast_construct<prototype_t>(qi::_1, qi::_2) ];
     // function := 'def' identifier '(' expr* ')' '{' expr '}'
-    function    = ("def" >> identifier >> '(' >> (variable % ',') >> ')' >> '{' >> expr >> '}')
+    function    = ("def" >> identifier >> '(' >> (- (variable % ',')) >> ')' >> '{' >> expr >> '}')
                   [ qi::_val = detail::ast_construct<function_t>(qi::_1, qi::_2, qi::_3) ];
 }
 

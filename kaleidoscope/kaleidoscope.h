@@ -8,6 +8,7 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -15,6 +16,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
+#include <boost/optional/optional.hpp>
 #include <boost/spirit/include/qi.hpp>
 
 #include <llvm/ADT/StringRef.h>
@@ -221,8 +223,8 @@ struct binary_expr_t : public expr_t {
 };
 
 struct call_t : public expr_t {
-    call_t(std::string const &callee, std::vector<expr_ptr_t> const &args)
-            : callee(callee), args(args) {
+    call_t(std::string const &callee, boost::optional<std::vector<expr_ptr_t>> const &args)
+            : callee(callee), args(args.value_or(std::vector<expr_ptr_t>{})) {
     }
     std::string format() const override {
         std::vector<std::string> fmtargs(args.size());
@@ -254,8 +256,8 @@ struct branch_t : public expr_t {
 };
 
 struct prototype_t {
-    prototype_t(std::string const &name, std::vector<variable_ptr_t> const &args)
-            : name(name), args(args) {
+    prototype_t(std::string const &name, boost::optional<std::vector<variable_ptr_t>> const &args)
+            : name(name), args(args.value_or(std::vector<variable_ptr_t>{})) {
     }
     std::string format() const {
         std::vector<std::string> fmtargs(args.size());
@@ -275,7 +277,7 @@ struct prototype_t {
 };
 
 struct function_t {
-    function_t(std::string const &name, std::vector<variable_ptr_t> const &args,
+    function_t(std::string const &name, boost::optional<std::vector<variable_ptr_t>> const &args,
                expr_ptr_t const &body)
             : prototype(std::make_shared<prototype_t>(name, args)), body(body) {
     }
