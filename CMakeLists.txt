@@ -18,6 +18,14 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
+option(LLVM_ENABLE_DUMP "The LLVM distribution has enable the dump option" OFF)
+if (LLVM_ENABLE_DUMP)
+    add_definitions(-DLLVM_ENABLE_DUMP)
+endif ()
+
+# Checking the option in CMake GUI seems doesn't work.
+set(LLVM_ENABLE_EH ON)
+
 set(Boost_USE_MULTITHREADED ON)
 find_package(Boost REQUIRED)
 

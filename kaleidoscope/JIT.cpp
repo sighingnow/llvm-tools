@@ -38,6 +38,8 @@ llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Modul
     for (auto&& F : *Module.getModule()) {
         FPM->run(F);
     }
+#if defined(LLVM_ENABLE_DUMP)
     Module.getModule()->dump();
+#endif
     return std::forward<orc::ThreadSafeModule>(Module);
 }
