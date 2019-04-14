@@ -31,14 +31,13 @@ grammar_rules::grammar_rules() {
     // helpers:
     identifier %= qi::alpha >> *qi::alnum;
     // expr:
-    expr       %= unary
-                | cmp_exp
-                | primary;
+    expr       %= cmp_exp;
     primary    %= group
                 | branch
                 | call
                 | variable
-                | number;
+                | number
+                | unary;
     // number := double
     number      = qi::double_
                   [ qi::_val = detail::ast_construct<number_t>(qi::_1) ];
@@ -53,7 +52,7 @@ grammar_rules::grammar_rules() {
     // mul := expr ( ('*' | '/') expr )+
     mul_many    = ((qi::char_('*') | qi::char_('/')) >> primary)
                   [ qi::_val = phx::construct<std::pair<char, expr_ptr_t>>(qi::_1, qi::_2) ];
-    mul_exp     = (primary >> mul_many)
+    mul_exp     = (primary >> +mul_many)
                   [ qi::_val = detail::ast_construct<binary_expr_t>(qi::_1, qi::_2) ]
                 | primary
                   [ qi::_val = qi::_1 ];
