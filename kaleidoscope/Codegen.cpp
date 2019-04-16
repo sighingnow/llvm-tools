@@ -40,7 +40,7 @@ llvm::Value *variable_t::codegen(llvm::Module *, llvm::LLVMContext &, llvm::IRBu
     if (auto r = Scope.global(name)) {
         return r;
     } else {
-        throw std::runtime_error(fmt::format("Variable out of scope: {}", name));
+        throw codegen_error("variable out of scope: '{}'", name);
     }
 }
 
@@ -53,7 +53,7 @@ llvm::Value *unary_expr_t::codegen(llvm::Module *Module, llvm::LLVMContext &Cont
         case '-':
             return Builder.CreateFNeg(v);
         default:
-            throw std::runtime_error(fmt::format("Unknown unary operator: {}", op));
+            throw codegen_error("unknown unary operator: '{}'", op);
     }
 }
 
@@ -77,7 +77,7 @@ llvm::Value *binary_expr_t::codegen(llvm::Module *Module, llvm::LLVMContext &Con
         case '=':
             return Builder.CreateFCmpUEQ(l, r);
         default:
-            throw std::runtime_error(fmt::format("Unknown binary operator: {}", op));
+            throw codegen_error("unknown binary operator: '{}'", op);
     }
 }
 
@@ -162,7 +162,7 @@ llvm::Function *function_t::codegen(llvm::Module *Module, llvm::LLVMContext &Con
         return F;
     } else {
         // F->eraseFromParent();
-        throw std::runtime_error(fmt::format("Failed codegen for function:\n{}", this->format()));
+        throw codegen_error("failed codegen for function:\n{}", this->format());
     }
 }
 

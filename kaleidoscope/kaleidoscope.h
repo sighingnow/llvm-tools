@@ -50,11 +50,33 @@ struct overloaded : Ts... {
 template <class... Ts>
 overloaded(Ts...)->overloaded<Ts...>;
 
+template <typename... Arg>
+class parse_error : public std::runtime_error {
+public:
+    parse_error(std::string const &whatfmt, Arg... arg)
+            : runtime_error(fmt::format(whatfmt, std::forward<Arg...>(arg)...)) {
+    }
+    parse_error(char const *whatfmt, Arg... arg)
+            : runtime_error(fmt::format(whatfmt, std::forward<Arg...>(arg)...)) {
+    }
+};
+
+template <typename... Arg>
+class codegen_error : public std::runtime_error {
+public:
+    codegen_error(std::string const &whatfmt, Arg... arg)
+            : runtime_error(fmt::format(whatfmt, std::forward<Arg...>(arg)...)) {
+    }
+    codegen_error(char const *whatfmt, Arg... arg)
+            : runtime_error(fmt::format(whatfmt, std::forward<Arg...>(arg)...)) {
+    }
+};
+
 template <typename Iter, typename P, typename... Args>
 bool parse_and_check(Iter begin, Iter end, P const &p, Args &&... args) {
     bool ok = qi::parse(begin, end, p, std::forward<Args>(args)...);
     if (!ok || begin != end) {
-        throw std::runtime_error(fmt::format("parse error: '{}'", std::string(begin, end)));
+        throw parse_error("parse error: '{}'", std::string(begin, end));
     }
     return ok;
 }
@@ -63,7 +85,7 @@ template <typename Iter, typename P, typename Skip, typename... Args>
 bool phrase_parse_and_check(Iter begin, Iter end, P const &p, Skip const &skip, Args &&... args) {
     bool ok = qi::phrase_parse(begin, end, p, skip, std::forward<Args>(args)...);
     if (!ok || begin != end) {
-        throw std::runtime_error(fmt::format("phrase parse error: '{}'", std::string(begin, end)));
+        throw parse_error("phrase parse error: '{}'", std::string(begin, end));
     }
     return ok;
 }
@@ -110,7 +132,7 @@ struct scope_t {
     }
     void exit() {
         if (scopes.empty()) {
-            throw std::runtime_error("Cannot exit at outside of top-level");
+            throw codegen_error("cannot exit at outside of top-level");
         }
         scopes.pop_back();
     }

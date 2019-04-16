@@ -51,10 +51,26 @@ int repl(int, char **) {
         std::string entry = fmt::format("{}_entry", modname);
 
         procedure_ptr_t r;
-        phrase_parse_and_check(ss.cbegin(), ss.cend(), procedure_grammar(), qi::space, r);
+        try {
+            phrase_parse_and_check(ss.cbegin(), ss.cend(), procedure_grammar(), qi::space, r);
+        } catch (std::exception const &e) {
+            fmt::print(stderr, "failed to parse the input: \n\t{}\n", e.what());
+            continue;
+        }
         auto Module = std::make_unique<llvm::Module>(modname, Context);
-        llvm::Function *f = r->codegen(Module.get(), Context, Builder, Scope);
-        TheJIT->addIRModule(std::move(Module));
+        llvm::Function *f = nullptr;
+        try {
+            f = r->codegen(Module.get(), Context, Builder, Scope);
+        } catch (std::exception const &e) {
+            fmt::print(stderr, "failed to generate llvm ir: \n\t{}\n", e.what());
+            continue;
+        }
+        try {
+            TheJIT->addIRModule(std::move(Module));
+        } catch (std::exception const &e) {
+            fmt::print(stderr, "failed to jit: \n\t{}\n", e.what());
+            continue;
+        }
 
         if (f->getName() == entry) {
             auto syn = llvm::cantFail(TheJIT->lookup(entry));
