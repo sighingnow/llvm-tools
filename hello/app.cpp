@@ -15,8 +15,6 @@
 
 #include <llvm/Support/CommandLine.h>
 
-#include "./codes.h"
-
 namespace clang {
 using namespace clang;
 using namespace clang::tooling;
@@ -78,5 +76,5 @@ int runWithArgs(int argc, const char **argv) {
 }
 
 int main(int argc, const char **argv) {
-    return clang::tooling::runToolOnCode(new HelloFrontendAction(), c1);
+    return clang::tooling::runToolOnCode(new HelloFrontendAction(), "int f() { return 0; }");
 }
