@@ -6,6 +6,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 message(STATUS "Build with ${CMAKE_BUILD_TYPE} mode")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(LLVM)
 list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
@@ -25,6 +26,7 @@ endif ()
 
 # Checking the option in CMake GUI seems doesn't work.
 set(LLVM_ENABLE_EH ON)
+set(LLVM_ENABLE_RTTI ON)
 
 set(Boost_USE_MULTITHREADED ON)
 find_package(Boost REQUIRED)
@@ -37,6 +39,9 @@ include_directories(third_party/fmt/include)
 link_libraries(fmt::fmt)
 
 include(third_party/cotire/CMake/cotire.cmake)
+
+include(cmake/use-ccache.cmake)
+include(cmake/use-ld-gold.cmake)
 
 ## Set up compiler and options.
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
