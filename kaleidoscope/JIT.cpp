@@ -4,7 +4,7 @@
 
 #include "kaleidoscope.h"
 
-llvm::Expected<std::unique_ptr<JIT>> JIT::Create() {
+llvm::Expected<std::unique_ptr<JIT>> JIT::Create(orc::ThreadSafeContext& JITContext) {
     auto JTMB = orc::JITTargetMachineBuilder::detectHost();
     if (!JTMB) {
         return JTMB.takeError();
@@ -13,7 +13,7 @@ llvm::Expected<std::unique_ptr<JIT>> JIT::Create() {
     if (!DL) {
         return DL.takeError();
     }
-    return llvm::make_unique<JIT>(std::move(*DL), std::move(*JTMB));
+    return llvm::make_unique<JIT>(std::move(*DL), std::move(*JTMB), JITContext);
 }
 
 void JIT::addIRModule(std::unique_ptr<llvm::Module> Module) {

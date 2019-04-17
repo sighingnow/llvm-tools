@@ -52,7 +52,7 @@ overloaded(Ts...)->overloaded<Ts...>;
 
 template <typename... Arg>
 class parse_error : public std::runtime_error {
-public:
+   public:
     parse_error(std::string const &whatfmt, Arg... arg)
             : runtime_error(fmt::format(whatfmt, std::forward<Arg...>(arg)...)) {
     }
@@ -63,7 +63,7 @@ public:
 
 template <typename... Arg>
 class codegen_error : public std::runtime_error {
-public:
+   public:
     codegen_error(std::string const &whatfmt, Arg... arg)
             : runtime_error(fmt::format(whatfmt, std::forward<Arg...>(arg)...)) {
     }
@@ -408,18 +408,19 @@ class procedure_grammar
 
 class JIT {
    public:
-    JIT(llvm::DataLayout &&Layout, orc::JITTargetMachineBuilder &&JTMB)
+    JIT(llvm::DataLayout &&Layout, orc::JITTargetMachineBuilder &&JTMB,
+        orc::ThreadSafeContext &JITContext)
             : Layout(std::move(Layout)),
               LinkLayer(ES, []() { return llvm::make_unique<llvm::SectionMemoryManager>(); }),
               CompileLayer(ES, LinkLayer, orc::ConcurrentIRCompiler(std::move(JTMB))),
               TransformLayer(ES, CompileLayer, optimizer),
               Mangle(ES, this->Layout),
-              JITContext(std::make_unique<llvm::LLVMContext>()) {
+              JITContext(JITContext) {
         ES.getMainJITDylib().setGenerator(llvm::cantFail(
                 orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(this->Layout)));
     }
 
-    static llvm::Expected<std::unique_ptr<JIT>> Create();
+    static llvm::Expected<std::unique_ptr<JIT>> Create(orc::ThreadSafeContext &JITContext);
 
     llvm::DataLayout const &getDataLayout() {
         return this->Layout;
@@ -445,7 +446,7 @@ class JIT {
     orc::IRTransformLayer TransformLayer;
     // orc::CompileOnDemandLayer CODLayer;
     orc::MangleAndInterner Mangle;
-    orc::ThreadSafeContext JITContext;
+    orc::ThreadSafeContext &JITContext;
 };
 
 #endif

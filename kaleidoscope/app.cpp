@@ -23,13 +23,13 @@ static std::string ts[] = {
 int repl(int, char **) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
 
     std::string prompt = "> ";
 
-    std::unique_ptr<JIT> TheJIT = llvm::cantFail(JIT::Create(), "Unable to create the JIT engine");
-    llvm::LLVMContext &Context = TheJIT->getContext();
-    llvm::IRBuilder<> Builder(Context);
+    orc::ThreadSafeContext JITContext(std::make_unique<llvm::LLVMContext>());
+    std::unique_ptr<JIT> TheJIT
+            = llvm::cantFail(JIT::Create(JITContext), "Unable to create the JIT engine");
+    llvm::IRBuilder<> Builder(*JITContext.getContext());
     scope_t Scope;
 
     int round = 0;
@@ -57,10 +57,10 @@ int repl(int, char **) {
             fmt::print(stderr, "failed to parse the input: \n\t{}\n", e.what());
             continue;
         }
-        auto Module = std::make_unique<llvm::Module>(modname, Context);
+        auto Module = std::make_unique<llvm::Module>(modname, *JITContext.getContext());
         llvm::Function *f = nullptr;
         try {
-            f = r->codegen(Module.get(), Context, Builder, Scope);
+            f = r->codegen(Module.get(), *JITContext.getContext(), Builder, Scope);
         } catch (std::exception const &e) {
             fmt::print(stderr, "failed to generate llvm ir: \n\t{}\n", e.what());
             continue;

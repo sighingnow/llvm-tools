@@ -16,7 +16,6 @@ target_link_libraries(kaleidoscope PUBLIC
     LLVMX86CodeGen
     LLVMX86Desc
     LLVMX86Info
-    LLVMX86AsmParser
     LLVMX86AsmPrinter
 )
 target_link_libraries(kaleidoscope PRIVATE readline)
