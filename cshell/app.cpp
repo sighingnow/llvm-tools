@@ -14,6 +14,7 @@
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendAction.h>
 #include <clang/Frontend/FrontendOptions.h>
+#include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
 #include <clang/Rewrite/Core/Rewriter.h>
 #include <clang/Tooling/CommonOptionsParser.h>
@@ -46,7 +47,8 @@ class CShellAction : public clang::CodeGenAction {
     }
     // FIXME
     // virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI,
-    //                                                               llvm::StringRef InFile) override {
+    //                                                               llvm::StringRef InFile)
+    //                                                               override {
     //     return std::unique_ptr<clang::ASTConsumer>(new CShellASTConsumer(CI.getASTContext()));
     // }
 };
@@ -64,31 +66,26 @@ int repl(int argc, char const **argv) {
 
     // Create compiler and action
     auto PCH = std::make_shared<clang::PCHContainerOperations>();
+    auto DiagOpts = new clang::DiagnosticOptions();
     auto Diagnostics = clang::CompilerInstance::createDiagnostics(
-            new clang::DiagnosticOptions(), new clang::DiagnosticConsumer(), true);
-    clang::driver::Driver TheDriver("cshell", llvm::sys::getDefaultTargetTriple(), *Diagnostics,
-                                    OverlayFS);
-    TheDriver.setTitle("cshell");
-    TheDriver.setCheckInputsExist(false);
+            DiagOpts, new clang::TextDiagnosticPrinter(llvm::errs(), DiagOpts, false), true);
 
     llvm::SmallVector<char const *, 16> Args(argv + 1, argv + argc);
     Args.push_back("-fsyntax-only");
-    std::unique_ptr<clang::driver::Compilation> C(TheDriver.BuildCompilation(Args));
-    fmt::print("compilation: {}\n", fmt::ptr(C.get()));
 
     auto CI = std::make_shared<clang::CompilerInvocation>();
     clang::CompilerInvocation::CreateFromArgs(*CI, const_cast<char const **>(Args.data()),
                                               const_cast<char const **>(Args.data() + Args.size()),
                                               *Diagnostics);
-    fmt::print("compiler invocation: {}\n", fmt::ptr(CI.get()));
 
     auto Clang = std::make_unique<clang::CompilerInstance>(PCH);
     Clang->setInvocation(std::move(CI));
-    fmt::print("has invocation: {}\n", Clang->hasInvocation());
 
     // NB: here the `false` is important, since the client is owned by previously created
     // DiagnosticsEngine.
-    Clang->createDiagnostics(Diagnostics->getClient(), false);
+    //
+    // NB: no need to recreate: Clang->createDiagnostics(Diagnostics->getClient(), false);
+    Clang->setDiagnostics(&*Diagnostics);
 
     Clang->setTarget(clang::TargetInfo::CreateTargetInfo(Clang->getDiagnostics(),
                                                          Clang->getInvocation().TargetOpts));
@@ -143,7 +140,7 @@ int repl(int argc, char const **argv) {
             Module->dump();
         }
 #endif
-        Clang->getDiagnostics().dump();
+        Diagnostics->Reset();
     }
 
     // Shutdown.
