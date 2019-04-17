@@ -21,9 +21,6 @@ static std::string ts[] = {
 };
 
 int repl(int, char **) {
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-
     std::string prompt = "> ";
 
     orc::ThreadSafeContext JITContext(std::make_unique<llvm::LLVMContext>());
@@ -82,5 +79,8 @@ int repl(int, char **) {
 }
 
 int main(int argc, char **argv) {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+
     return repl(argc, argv);
 }

@@ -2,8 +2,11 @@ cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 
 project(hello-llvm LANGUAGES C CXX)
 
-if(NOT CMAKE_BUILD_TYPE)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug)
+
+    # Set the possible values of build type for cmake-gui
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release MinSizeRel RelWithDebInfo)
 endif()
 message(STATUS "Build with ${CMAKE_BUILD_TYPE} mode")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
