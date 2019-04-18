@@ -28,16 +28,15 @@ int repl(int argc, char const **argv) {
 
         std::string FileName = fmt::format("cshell_repl_{}.cpp", round++);
         auto Module = TheFrontend.runCode(Code, FileName);
-#if defined(LLVM_ENABLE_DUMP)
-        if (Module) {
-            Module->dump();
-        }
-#endif
+
         if (Module) {
             TheJIT->addIRModule(std::move(Module));
             auto syn = TheJIT->lookup("main");
             // FIXME name duplication are not allowed by current JIT.
-            if (syn) {
+            if (!syn) {
+                discardError(std::move(syn), false);
+            }
+            else {
                 auto fptr = (int (*)())(uintptr_t)syn.get().getAddress();
                 fprintf(stdout, "res: %d\n", fptr());
             }

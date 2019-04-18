@@ -14,8 +14,9 @@ llvm::Expected<std::unique_ptr<JIT>> JIT::Create(orc::ThreadSafeContext& JITCont
 
 void JIT::addIRModule(std::unique_ptr<llvm::Module> Module) {
     Module->setDataLayout(this->Layout);
-    llvm::cantFail(TransformLayer.add(ES.getMainJITDylib(),
-                                      orc::ThreadSafeModule(std::move(Module), JITContext)));
+    auto err = TransformLayer.add(ES.getMainJITDylib(),
+                                      orc::ThreadSafeModule(std::move(Module), JITContext));
+    discardError(std::move(err));
 }
 
 llvm::Expected<llvm::JITEvaluatedSymbol> JIT::lookup(llvm::StringRef Name) {
