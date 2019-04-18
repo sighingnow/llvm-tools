@@ -26,7 +26,7 @@ int repl(int argc, char const **argv) {
             continue;
         }
 
-        std::string FileName = fmt::format("cshell_repl_{}.cpp", round++);
+        std::string FileName = fmt::format("interactive[{}]", round++);
         auto Module = TheFrontend.runCode(Code, FileName);
 
         if (Module) {

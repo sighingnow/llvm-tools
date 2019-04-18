@@ -1,4 +1,21 @@
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Scalar/GVN.h>
+
 #include "JIT.h"
+
+JIT::JIT(llvm::DataLayout&& Layout, orc::JITTargetMachineBuilder&& JTMB,
+         orc::ThreadSafeContext& JITContext)
+        : Layout(std::move(Layout)),
+          MainLib(ES.getMainJITDylib()),
+          LinkLayer(ES, []() { return llvm::make_unique<llvm::SectionMemoryManager>(); }),
+          CompileLayer(ES, LinkLayer, orc::ConcurrentIRCompiler(std::move(JTMB))),
+          TransformLayer(ES, CompileLayer, optimizer),
+          Mangle(ES, this->Layout),
+          JITContext(JITContext) {
+    MainLib.setGenerator(
+            llvm::cantFail(orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(this->Layout)));
+}
 
 llvm::Expected<std::unique_ptr<JIT>> JIT::Create(orc::ThreadSafeContext& JITContext) {
     auto JTMB = orc::JITTargetMachineBuilder::detectHost();
@@ -42,13 +59,26 @@ llvm::Expected<llvm::JITEvaluatedSymbol> JIT::lookup(orc::SymbolStringPtr Name) 
     return ES.lookup(orc::JITDylibSearchList({{&ES.getMainJITDylib(), true}}), Name);
 }
 
+bool JIT::hasSymbol(llvm::StringRef Name) {
+    return discardError(lookup(Name), false);
+}
+
 llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Module,
                                                      orc::MaterializationResponsibility const&) {
     auto FPM = std::make_unique<llvm::legacy::FunctionPassManager>(Module.getModule());
-    FPM->add(llvm::createInstructionCombiningPass());
-    FPM->add(llvm::createReassociatePass());
-    FPM->add(llvm::createGVNPass());
     FPM->add(llvm::createCFGSimplificationPass());
+    FPM->add(llvm::createCorrelatedValuePropagationPass());
+    FPM->add(llvm::createDeadStoreEliminationPass());
+    FPM->add(llvm::createGVNPass());
+    FPM->add(llvm::createInstructionCombiningPass());
+    FPM->add(llvm::createMemCpyOptPass());
+    FPM->add(llvm::createMergedLoadStoreMotionPass());
+    FPM->add(llvm::createReassociatePass());
+    FPM->add(llvm::createSCCPPass());
+    FPM->add(llvm::createSimpleLoopUnrollPass());
+    FPM->add(llvm::createSimpleLoopUnrollPass());
+    FPM->add(llvm::createSpeculativeExecutionIfHasBranchDivergencePass());
+    FPM->add(llvm::createTailCallEliminationPass());
     FPM->doInitialization();
 
     for (auto&& F : Module.getModule()->functions()) {

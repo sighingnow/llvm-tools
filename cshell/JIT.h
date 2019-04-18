@@ -16,9 +16,6 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/TargetSelect.h>
-#include <llvm/Transforms/InstCombine/InstCombine.h>
-#include <llvm/Transforms/Scalar.h>
-#include <llvm/Transforms/Scalar/GVN.h>
 
 #include "Common.h"
 
@@ -27,17 +24,7 @@ namespace orc = llvm::orc;
 class JIT {
    public:
     JIT(llvm::DataLayout &&Layout, orc::JITTargetMachineBuilder &&JTMB,
-        orc::ThreadSafeContext &JITContext)
-            : Layout(std::move(Layout)),
-              MainLib(ES.getMainJITDylib()),
-              LinkLayer(ES, []() { return llvm::make_unique<llvm::SectionMemoryManager>(); }),
-              CompileLayer(ES, LinkLayer, orc::ConcurrentIRCompiler(std::move(JTMB))),
-              TransformLayer(ES, CompileLayer, optimizer),
-              Mangle(ES, this->Layout),
-              JITContext(JITContext) {
-        MainLib.setGenerator(llvm::cantFail(
-                orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(this->Layout)));
-    }
+        orc::ThreadSafeContext &JITContext);
 
     static llvm::Expected<std::unique_ptr<JIT>> Create(orc::ThreadSafeContext &JITContext);
 
@@ -55,9 +42,7 @@ class JIT {
 
     llvm::Expected<llvm::JITEvaluatedSymbol> lookup(orc::SymbolStringPtr Name);
 
-    bool hasSymbol(llvm::StringRef Name) {
-        return discardError(lookup(Name), false);
-    }
+    bool hasSymbol(llvm::StringRef Name);
 
    private:
     static llvm::Expected<orc::ThreadSafeModule> optimizer(
