@@ -29,12 +29,13 @@ class JIT {
     JIT(llvm::DataLayout &&Layout, orc::JITTargetMachineBuilder &&JTMB,
         orc::ThreadSafeContext &JITContext)
             : Layout(std::move(Layout)),
+              MainLib(ES.getMainJITDylib()),
               LinkLayer(ES, []() { return llvm::make_unique<llvm::SectionMemoryManager>(); }),
               CompileLayer(ES, LinkLayer, orc::ConcurrentIRCompiler(std::move(JTMB))),
               TransformLayer(ES, CompileLayer, optimizer),
               Mangle(ES, this->Layout),
               JITContext(JITContext) {
-        ES.getMainJITDylib().setGenerator(llvm::cantFail(
+        MainLib.setGenerator(llvm::cantFail(
                 orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(this->Layout)));
     }
 
@@ -52,6 +53,12 @@ class JIT {
 
     llvm::Expected<llvm::JITEvaluatedSymbol> lookup(llvm::StringRef Name);
 
+    llvm::Expected<llvm::JITEvaluatedSymbol> lookup(orc::SymbolStringPtr Name);
+
+    bool hasSymbol(llvm::StringRef Name) {
+        return discardError(lookup(Name), false);
+    }
+
    private:
     static llvm::Expected<orc::ThreadSafeModule> optimizer(
             orc::ThreadSafeModule Module, orc::MaterializationResponsibility const &);
@@ -59,6 +66,7 @@ class JIT {
    private:
     llvm::DataLayout Layout;
     orc::ExecutionSession ES;
+    orc::JITDylib &MainLib;
     orc::RTDyldObjectLinkingLayer LinkLayer;
     orc::IRCompileLayer CompileLayer;
     orc::IRTransformLayer TransformLayer;

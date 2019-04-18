@@ -13,14 +13,33 @@ llvm::Expected<std::unique_ptr<JIT>> JIT::Create(orc::ThreadSafeContext& JITCont
 }
 
 void JIT::addIRModule(std::unique_ptr<llvm::Module> Module) {
+    // Remove exists names.
+    orc::SymbolNameSet names;
+    for (auto&& GV : Module->globals()) {
+        if (!GV.isDeclaration() && GV.hasName() && this->hasSymbol(GV.getName())) {
+            names.insert(Mangle(GV.getName()));
+        }
+    }
+    for (auto&& F : Module->functions()) {
+        if (!F.isDeclaration() && F.hasName() && this->hasSymbol(F.getName())) {
+            names.insert(Mangle(F.getName()));
+        }
+    }
+    auto err = MainLib.remove(names);
+    discardError(std::move(err));
+
+    // Add IRModule
     Module->setDataLayout(this->Layout);
-    auto err = TransformLayer.add(ES.getMainJITDylib(),
-                                      orc::ThreadSafeModule(std::move(Module), JITContext));
+    err = TransformLayer.add(MainLib, orc::ThreadSafeModule(std::move(Module), JITContext));
     discardError(std::move(err));
 }
 
 llvm::Expected<llvm::JITEvaluatedSymbol> JIT::lookup(llvm::StringRef Name) {
     return ES.lookup(orc::JITDylibSearchList({{&ES.getMainJITDylib(), true}}), Mangle(Name));
+}
+
+llvm::Expected<llvm::JITEvaluatedSymbol> JIT::lookup(orc::SymbolStringPtr Name) {
+    return ES.lookup(orc::JITDylibSearchList({{&ES.getMainJITDylib(), true}}), Name);
 }
 
 llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Module,
@@ -32,11 +51,11 @@ llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Modul
     FPM->add(llvm::createCFGSimplificationPass());
     FPM->doInitialization();
 
-    for (auto&& F : *Module.getModule()) {
+    for (auto&& F : Module.getModule()->functions()) {
         FPM->run(F);
-    }
 #if defined(LLVM_ENABLE_DUMP)
-    Module.getModule()->dump();
+        F.dump();
 #endif
+    }
     return std::forward<orc::ThreadSafeModule>(Module);
 }
