@@ -9,7 +9,6 @@ target_link_libraries(cshell PUBLIC
     clangAST
     clangBasic
     clangCodeGen
-    clangDriver
     clangEdit
     clangFrontend
     clangLex

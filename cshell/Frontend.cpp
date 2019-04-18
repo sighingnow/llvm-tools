@@ -17,12 +17,46 @@ Frontend::Frontend(llvm::LLVMContext *Context)
     // DiagnosticsEngine.
     Clang->setDiagnostics(&*Diagnostics);
 
-    llvm::SmallVector<char const *, 16> Args;
+    llvm::opt::ArgStringList Args;
+
+#if defined(DEBUG)
+    Args.push_back("-v");
+#endif
+
     auto CI = std::make_shared<clang::CompilerInvocation>();
     clang::CompilerInvocation::CreateFromArgs(*CI, const_cast<char const **>(Args.data()),
                                               const_cast<char const **>(Args.data() + Args.size()),
                                               *Diagnostics);
     Clang->setInvocation(std::move(CI));
+
+    auto &LangOpts = Clang->getLangOpts();
+    LangOpts.CPlusPlus = 1;
+    LangOpts.CPlusPlus17 = 1;
+    LangOpts.CXXExceptions = 1;
+    LangOpts.RTTI = 1;
+
+    auto &HeaderSearchOpts = Clang->getHeaderSearchOpts();
+    HeaderSearchOpts.UseBuiltinIncludes = 1;
+    HeaderSearchOpts.UseStandardSystemIncludes = 1;
+    HeaderSearchOpts.UseStandardCXXIncludes = 1;
+    HeaderSearchOpts.Verbose = 0;
+
+    // FIXME
+    HeaderSearchOpts.AddPath(".", clang::frontend::CSystem, false, false);
+    HeaderSearchOpts.AddPath("/usr/local/include", clang::frontend::CXXSystem, false, false);
+    HeaderSearchOpts.AddPath("/usr/bin/../lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8",
+                             clang::frontend::CXXSystem, false, false);
+    HeaderSearchOpts.AddPath(
+            "/usr/bin/../lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8",
+            clang::frontend::CXXSystem, false, false);
+    HeaderSearchOpts.AddPath(
+            "/usr/bin/../lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8/backward",
+            clang::frontend::CXXSystem, false, false);
+    HeaderSearchOpts.AddPath("/usr/include/clang/9.0.0/include", clang::frontend::System, false,
+                             false);
+    HeaderSearchOpts.AddPath("/usr/include/x86_64-linux-gnu", clang::frontend::System, false,
+                             false);
+    HeaderSearchOpts.AddPath("/usr/include", clang::frontend::System, false, false);
 
     Clang->setTarget(clang::TargetInfo::CreateTargetInfo(Clang->getDiagnostics(),
                                                          Clang->getInvocation().TargetOpts));
