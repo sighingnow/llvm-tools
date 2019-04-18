@@ -1,4 +1,6 @@
 add_llvm_executable(cshell
+    Frontend.cpp
+    JIT.cpp
     app.cpp
 )
 target_link_libraries(cshell PUBLIC
@@ -19,8 +21,13 @@ target_link_libraries(cshell PUBLIC
     LLVMBitWriter
     LLVMCore
     LLVMExecutionEngine
+    LLVMInstCombine
+    LLVMObject
     LLVMOption
+    LLVMOrcJIT
+    LLVMScalarOpts
     LLVMSupport
+    LLVMTarget
     LLVMX86AsmPrinter
     LLVMX86CodeGen
     LLVMX86Desc
