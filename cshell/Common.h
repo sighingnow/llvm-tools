@@ -20,6 +20,8 @@
 
 #include <llvm/Support/Error.h>
 
+using namespace std::placeholders;
+
 template <class... Ts>
 struct overloaded : Ts... {
     using Ts::operator()...;
@@ -31,7 +33,7 @@ overloaded(Ts...)->overloaded<Ts...>;
  *
  * Similar to llvm::logAllUnhandledErrors, but also works for llvm::Expected<T>.
  */
-inline bool discardError(llvm::Error err, bool log = true, llvm::raw_ostream &OS = llvm::errs()) {
+inline bool discardError(llvm::Error &&err, bool log = true, llvm::raw_ostream &OS = llvm::errs()) {
     if (err) {
         llvm::handleAllErrors(std::move(err), [&OS, log](std::unique_ptr<llvm::ErrorInfoBase> payload) {
             if (log) {
@@ -45,7 +47,12 @@ inline bool discardError(llvm::Error err, bool log = true, llvm::raw_ostream &OS
 }
 
 template <typename T>
-inline bool discardError(llvm::Expected<T> val, bool log = true, llvm::raw_ostream &OS = llvm::errs()) {
+inline bool discardError(llvm::Expected<T> &val, bool log = true, llvm::raw_ostream &OS = llvm::errs()) {
+    return discardError(val.takeError(), log, OS);
+}
+
+template <typename T>
+inline bool discardError(llvm::Expected<T> &&val, bool log = true, llvm::raw_ostream &OS = llvm::errs()) {
     return discardError(val.takeError(), log, OS);
 }
 

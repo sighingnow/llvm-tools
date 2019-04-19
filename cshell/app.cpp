@@ -32,9 +32,7 @@ int repl(int argc, char const **argv) {
         if (Module) {
             TheJIT->addIRModule(std::move(Module));
             auto syn = TheJIT->lookup("main");
-            if (!syn) {
-                discardError(std::move(syn), false);
-            } else {
+            if (discardError(syn, false)) {
                 auto fptr = (int (*)())(uintptr_t)syn.get().getAddress();
                 fprintf(stdout, "res: %d\n", fptr());
             }
