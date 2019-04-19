@@ -5,12 +5,13 @@
 #include "JIT.h"
 
 JIT::JIT(llvm::DataLayout&& Layout, orc::JITTargetMachineBuilder&& JTMB,
-         orc::ThreadSafeContext& JITContext)
+         std::unique_ptr<llvm::TargetMachine> Machine, orc::ThreadSafeContext& JITContext)
         : Layout(std::move(Layout)),
+          Machine(std::move(Machine)),
           MainLib(ES.getMainJITDylib()),
           LinkLayer(ES, []() { return llvm::make_unique<llvm::SectionMemoryManager>(); }),
           CompileLayer(ES, LinkLayer, orc::ConcurrentIRCompiler(std::move(JTMB))),
-          TransformLayer(ES, CompileLayer, optimizer),
+          TransformLayer(ES, CompileLayer, std::bind(&JIT::optimizer, this, _1, _2)),
           Mangle(ES, this->Layout),
           JITContext(JITContext) {
     MainLib.setGenerator(
@@ -26,7 +27,12 @@ llvm::Expected<std::unique_ptr<JIT>> JIT::Create(orc::ThreadSafeContext& JITCont
     if (!DL) {
         return DL.takeError();
     }
-    return llvm::make_unique<JIT>(std::move(*DL), std::move(*JTMB), JITContext);
+    auto Machine = JTMB->createTargetMachine();
+    if (!Machine) {
+        return Machine.takeError();
+    }
+    return llvm::make_unique<JIT>(std::move(*DL), std::move(*JTMB), std::move(*Machine),
+                                  JITContext);
 }
 
 void JIT::addIRModule(std::unique_ptr<llvm::Module> Module) {
@@ -65,7 +71,7 @@ bool JIT::hasSymbol(llvm::StringRef Name) {
 
 llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Module,
                                                      orc::MaterializationResponsibility const&) {
-    auto FPM = std::make_unique<llvm::legacy::FunctionPassManager>(Module.getModule());
+    auto FPM = std::make_unique<llvm::legacy::PassManager>();
     FPM->add(llvm::createCFGSimplificationPass());
     FPM->add(llvm::createCorrelatedValuePropagationPass());
     FPM->add(llvm::createDeadStoreEliminationPass());
@@ -79,13 +85,19 @@ llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Modul
     FPM->add(llvm::createSimpleLoopUnrollPass());
     FPM->add(llvm::createSpeculativeExecutionIfHasBranchDivergencePass());
     FPM->add(llvm::createTailCallEliminationPass());
-    FPM->doInitialization();
 
-    for (auto&& F : Module.getModule()->functions()) {
-        FPM->run(F);
 #if defined(LLVM_ENABLE_DUMP)
-        F.dump();
+    Machine->addPassesToEmitFile(*FPM, static_cast<llvm::raw_fd_ostream&>(llvm::errs()), nullptr,
+                                 llvm::TargetMachine::CGFT_AssemblyFile);
 #endif
+
+    FPM->run(*Module.getModule());
+
+#if defined(LLVM_ENABLE_DUMP)
+    for (auto &&F: Module.getModule()->functions()) {
+        F.dump();
     }
+#endif
+
     return std::forward<orc::ThreadSafeModule>(Module);
 }

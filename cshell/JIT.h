@@ -24,7 +24,7 @@ namespace orc = llvm::orc;
 class JIT {
    public:
     JIT(llvm::DataLayout &&Layout, orc::JITTargetMachineBuilder &&JTMB,
-        orc::ThreadSafeContext &JITContext);
+        std::unique_ptr<llvm::TargetMachine> Machine, orc::ThreadSafeContext &JITContext);
 
     static llvm::Expected<std::unique_ptr<JIT>> Create(orc::ThreadSafeContext &JITContext);
 
@@ -45,11 +45,12 @@ class JIT {
     bool hasSymbol(llvm::StringRef Name);
 
    private:
-    static llvm::Expected<orc::ThreadSafeModule> optimizer(
+    llvm::Expected<orc::ThreadSafeModule> optimizer(
             orc::ThreadSafeModule Module, orc::MaterializationResponsibility const &);
 
    private:
     llvm::DataLayout Layout;
+    std::unique_ptr<llvm::TargetMachine> Machine;
     orc::ExecutionSession ES;
     orc::JITDylib &MainLib;
     orc::RTDyldObjectLinkingLayer LinkLayer;
