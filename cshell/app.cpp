@@ -10,7 +10,7 @@ int repl(int argc, char const **argv) {
     int round = 0;
 
     auto TheContext = llvm::orc::ThreadSafeContext(std::make_unique<llvm::LLVMContext>());
-    Frontend TheFrontend(TheContext.getContext());
+    Frontend TheFrontend(*TheContext.getContext());
     auto TheJIT = llvm::cantFail(JIT::Create(TheContext), "Unable to create the JIT engine");
 
     while (true) {

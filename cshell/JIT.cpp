@@ -1,3 +1,6 @@
+#include <llvm/ExecutionEngine/Orc/CompileUtils.h>
+#include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/GVN.h>
@@ -86,15 +89,16 @@ llvm::Expected<orc::ThreadSafeModule> JIT::optimizer(orc::ThreadSafeModule Modul
     FPM->add(llvm::createSpeculativeExecutionIfHasBranchDivergencePass());
     FPM->add(llvm::createTailCallEliminationPass());
 
-#if defined(LLVM_ENABLE_DUMP)
-    Machine->addPassesToEmitFile(*FPM, static_cast<llvm::raw_fd_ostream&>(llvm::errs()), nullptr,
-                                 llvm::TargetMachine::CGFT_AssemblyFile);
-#endif
+    // #if defined(LLVM_ENABLE_DUMP)
+    //     Machine->addPassesToEmitFile(*FPM, static_cast<llvm::raw_fd_ostream&>(llvm::errs()),
+    //     nullptr,
+    //                                  llvm::TargetMachine::CGFT_AssemblyFile);
+    // #endif
 
     FPM->run(*Module.getModule());
 
 #if defined(LLVM_ENABLE_DUMP)
-    for (auto &&F: Module.getModule()->functions()) {
+    for (auto&& F : Module.getModule()->functions()) {
         F.dump();
     }
 #endif
